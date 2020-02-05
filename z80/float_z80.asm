@@ -483,67 +483,31 @@ _f16_div_hl_de:
     ld b,a
     ld a,d
     or e
-    jp z,handle_nan
+    jp z,div_handle_inf_or_nan
     ld a,h
     or l
     ret z
-    push bc
+    ld a,b
+    push af
     ld b,d ;  save divider to bc
     ld c,e
-
-    ex de,hl
-    ld hl,0
-
-    sra d
-    rr e
-    rr h
     
-    sra d
-    rr e
-    rr h
-    
-    sra d
-    rr e
-    rr h
+    add hl,hl ; ehl = hl<10
+    add hl,hl
+    ld e,h  
+    ld h,l
+    ld l,0
 
-    sra b
-    rr c
-    
-    rra ; save last bit of bc to ad
-    push af
-    add hl,bc  
-    ld a,e
-    adc 0
-    ld e,a
-    pop af
-    rla
-    rl c
-    rl b ; restore this bit
-
+    pop af ; a exp, ehl m1 bc m2
     call _div_24_by_15_ehl_by_bc
-    pop bc ; b now has exp
+    ld b,a ; save new exp to b
+
     ld a,e
     or h
     or l
-    ret z ; 
-
-div_loop_small:
-    ld a,0xE0
-    and h
-    or e
-    jr nz,div_loop_big  ; v<8192
-    or b
-    jr z,div_loop_big
-    bit 7,b
-    jr nz,div_loop_big
-div_loop_small_next:
-    add hl,hl
-    dec b
-    jr z,div_loop_big
-    bit 5,h
-    jr z,div_loop_small_next
+    ret z
 div_loop_big:
-    ld a,0xC0
+    ld a,0xF8
     and h
     or e
     jr z,div_check_neg_or_zero_exp
@@ -570,12 +534,6 @@ div_exp_positive:
     ld a,30
     cp b
     jp c,handle_inf
-    sra h
-    rr l
-    sra h
-    rr l
-    sra h
-    rr l
     res 2,h
     ld a,b
     add a,a
@@ -586,7 +544,11 @@ div_exp_positive:
     or h
     ld h,a
     ret
-    
+div_handle_inf_or_nan:
+    ld a,h
+    or l
+    jp z,handle_nan
+    jp handle_inf 
 
 
 
@@ -594,6 +556,10 @@ div_exp_positive:
 
 
 _div_24_by_15_ehl_by_bc:
+    push ix
+    ld ix,0
+    add ix,sp
+    push af ; set the exp at (ix-2)
     push hl
     ld a,e
     exx 
@@ -630,12 +596,27 @@ div_int_update_after_substr:
     exx
     djnz div_int_next
 div_int_done:
+    exx
+    ld a,0xFC       ; if ehl < 1024 && exp>0
+    and d
+    or b
+    exx
+    jr nz,div_final
+    ld a,(ix-1)
+    and a
+    jr z,div_final
+    inc b   ; set b to one sycle
+    dec (ix-1)
+    jr div_int_next
+div_final:
     ex (sp),hl ; restore hl' (speccy thing) and put reminder to the stack
     exx
     ex de,hl
     ld e,b
     ld d,0
     pop bc ; get  reminder
+    pop af ; restore exp 
+    pop ix
     ret 
 
 _f16_neg:

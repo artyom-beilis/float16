@@ -207,8 +207,6 @@ short f16_div(short a,short b)
         }
         new_exp--;
     }
-    if(rem*2 >= m2)
-        v++;
     while(v >= 2048) {
         v>>=1;
         new_exp++;

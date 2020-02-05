@@ -2,3 +2,4 @@
 *.o
 *.bin
 test_z80
+test_c

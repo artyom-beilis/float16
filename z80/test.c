@@ -1,12 +1,14 @@
 #include "float16.h"
 #include "comp.h"
 #include <z80ex/z80ex.h>
+#include <z80ex/z80ex_dasm.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 static unsigned char memory[65536];
 static Z80EX_CONTEXT *ctx; 
+static int print_cpu_state;
 
 static Z80EX_BYTE pread(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *user_data)
 {
@@ -89,8 +91,40 @@ void init()
     }
 }
 
+unsigned short read_word(int addr)
+{
+    return memory[addr&0xFFFF] + 256*memory[(addr+1)&0xFFFF];
+}
+
+void print_regs()
+{
+    printf("AF:%04x   AF':%04x\n",z80ex_get_reg(ctx,regAF),z80ex_get_reg(ctx,regAF_));
+    printf("HL:%04x   HL':%04x\n",z80ex_get_reg(ctx,regHL),z80ex_get_reg(ctx,regHL_));
+    printf("DE:%04x   DE':%04x\n",z80ex_get_reg(ctx,regDE),z80ex_get_reg(ctx,regDE_));
+    printf("BC:%04x   BC':%04x\n",z80ex_get_reg(ctx,regBC),z80ex_get_reg(ctx,regBC_));
+    printf("IX:%04x   IY :%04x  SP: %04x  PC: %04x\n",z80ex_get_reg(ctx,regIX),z80ex_get_reg(ctx,regIY),z80ex_get_reg(ctx,regSP),z80ex_get_reg(ctx,regPC));
+    int sp = z80ex_get_reg(ctx,regSP);
+    printf("S0:%04x   S1 :%04x  S2: %04x  S3: %04x\n",read_word(sp),read_word(sp+2),read_word(sp+4),read_word(sp+6));
+}
+
+Z80EX_BYTE dasm_read(Z80EX_WORD addr, void *user_data)
+{
+    return memory[addr];
+}
+
+void print_dasm()
+{
+    char buf[256];
+    int t1,t2;
+    int pc=z80ex_get_reg(ctx,regPC);
+    z80ex_dasm(buf,sizeof(buf),0,&t1,&t2,dasm_read,pc,NULL);
+    printf("%04x: %s\n",pc,buf);
+}
+
 int run_programm(int addr,short *hl,short *de,short *bc)
 {
+    if(print_cpu_state)
+        printf("CALL:............................\n");
     unsigned short saddr = addr;
     z80ex_set_reg(ctx,regHL,*hl);
     z80ex_set_reg(ctx,regDE,*de);
@@ -102,8 +136,16 @@ int run_programm(int addr,short *hl,short *de,short *bc)
     memory[3]=0;
     int tstates = 0;
     int limit = 1000000;
+    if(print_cpu_state)
+        print_regs();
     while(z80ex_get_reg(ctx,regPC)!=3 || tstates > limit) {
-        tstates+=z80ex_step(ctx);
+        if(print_cpu_state)
+            print_dasm();
+        do {
+            tstates+=z80ex_step(ctx);
+        } while(z80ex_last_op_type(ctx)!=0 && tstates <= limit);
+        if(print_cpu_state)
+            print_regs();
     }
     if(tstates > limit) {
         fprintf(stderr,"Looks like a loop, pc=%x\n",z80ex_get_reg(ctx,regPC));
@@ -149,12 +191,19 @@ static short zx_div(short a,short b)
     return run_2s1s(addrs.div,a,b,&addrs.div_states);
 }
 
-void print_states()
+int ratio(long states,int calls)
 {
-    printf("add %ld T states\n",addrs.add_states / addrs.add_calls);
-    printf("sub %ld T states\n",addrs.sub_states / addrs.sub_calls);
-    printf("mul %ld T states\n",addrs.mul_states / addrs.mul_calls);
-    printf("div %ld T states\n",addrs.div_states / addrs.div_calls);
+    if(calls == 0)
+        return 0;
+    return (int)(states/calls);
+}
+
+void print_stats()
+{
+    printf("add %d T states\n",ratio(addrs.add_states,addrs.add_calls));
+    printf("sub %d T states\n",ratio(addrs.sub_states,addrs.sub_calls));
+    printf("mul %d T states\n",ratio(addrs.mul_states,addrs.mul_calls));
+    printf("div %d T states\n",ratio(addrs.div_states,addrs.div_calls));
 }
 
 int main()
@@ -176,7 +225,13 @@ int main()
     };
     init();
     read_def();
-    atexit(print_states);
+    atexit(print_stats);
+    //
+    // print_cpu_state=1;
+    // zx_div(10958,466);
+    // return 0;
+    //
     run_test(&cmp);
+    return 0;
 }
 
