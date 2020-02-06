@@ -43,12 +43,12 @@ fast_add_noswap:
     ld a,c
     and d
     cp c
-    jp z,handle_nan
+    jp z,add_handle_nan_or_inf
     ld b,a ; bx in b
     ld a,h
     and c
     cp c
-    jp z,handle_nan
+    jp z,add_handle_nan_or_inf
     sub b
     jr z,fast_add_diff_0
     rra  ; carry is reset due to 
@@ -124,7 +124,26 @@ fast_add_update_exp:
     or h
     ld h,a
     ret
+add_handle_nan_or_inf:
+    ld c,0x7c
+    ld a,h
+    cp c
+    jr c,add_a_not_inv
+    xor c
+    or l
+    jp nz,handle_nan
+add_a_not_inv:
+    ld a,d
+    cp c
+    jr c,add_b_not_inv
+    xor c
+    or e
+    jp nz,handle_nan
+add_b_not_inv:
+    jp handle_inf
 
+
+    
 
 _f16_sub:
     pop bc
@@ -167,12 +186,12 @@ fast_sub_noswap:
     ld a,c
     and d
     cp c
-    jp z,handle_nan
+    jp z,sub_handle_nan_or_inf
     ld b,a ; bx in b
     ld a,h
     and c
     cp c
-    jr z,handle_nan
+    jr z,sub_handle_nan_or_inf
     sub b
     jr z,fast_sub_diff_0
 
@@ -257,6 +276,34 @@ fast_sub_shift_add_sign_and_ret:
     or a,h
     ld h,a
     ret
+sub_handle_nan_or_inf:
+    ld c,0xF8
+    ld a,h
+    cp c
+    jr c,sub_a_not_inv
+    xor c
+    or l
+    jr nz,handle_nan
+sub_a_not_inv:
+    ld a,d
+    cp c
+    jr c,handle_inf
+    xor c
+    or e
+    jr nz,handle_nan ;
+    sbc hl,de ; check if both are inf
+    jr z,handle_nan 
+    and a
+    add hl,de
+    ld a,h
+    xor c
+    or l
+    jr z,handle_inf
+    ex af,af'
+    xor 0x80
+    ex af,af'
+    jr handle_inf
+
 
 handle_nan:
     ld hl,0x7FFF
@@ -279,7 +326,7 @@ _f16_mul:
     push bc
 _f16_mul_hl_de:
     call calc_ax_bx_mantissa_and_sign
-    jr z,handle_nan
+    jr z,mul_handle_nan_inf
     add b   ; new_exp = ax + bx - 15
     sub 15
     exx 
@@ -363,13 +410,35 @@ final_combine:
     or h
     ld h,a
     ret
+mul_handle_nan_inf:
+    cp 31
+    jr nz,mul_a_is_valid
+    ld a,4
+    xor h
+    or l
+    jp nz,handle_nan ; exp=31 and mant!=0
+mul_a_is_valid:
+    ld a,b
+    cp 31
+    jr nz,mul_b_is_valid
+    ld a,4
+    xor d
+    or e
+    jp nz,handle_nan ; exp=31 and mant!=0
+mul_b_is_valid:
+    ld a,h
+    or l
+    jp z,handle_nan
+    ld a,d
+    or e
+    jp z,handle_nan
+    jp handle_inf 
     
 
     ; input hl,de
     ; output 
     ;   a=ax = max(exp(hl),1)
     ;   b=bx = max(exp(de),1)
-    ;   c = exp(hl)
     ;   hl = mantissa(hl)
     ;   de = mantissa(de)
     ;   z flag one of the numbers is inf/nan
@@ -388,8 +457,6 @@ calc_ax_bx_mantissa:
     ld a,d
     and c
     jr z,bx_is_zero
-    cp c
-    ret z
     rrca  
     rra 
     ld b,a ; b=bx
@@ -405,8 +472,6 @@ bx_not_zero:
     ld a,h
     and c
     jr z,ax_is_zero 
-    cp c
-    ret z
     rrca
     rra 
     ld c,a  ; c=exp
@@ -415,12 +480,17 @@ bx_not_zero:
     or 4
     ld h,a
     ld a,c ; exp=ax
+exp_check_nan:
+    ld c,a
+    ld a,31
+    cp c
+    ret z
+    cp b
+    ld a,c ; restore exp(hl)
     ret
 ax_is_zero:
     ld a,1 ; hl is already ok a=ax
-    and a ; reset z flag
-    ld c,0 ; c=exp(hl)
-    ret 
+    jr exp_check_nan
 
 
 mpl_11_bit:
@@ -477,13 +547,13 @@ _f16_div:
     push bc
 _f16_div_hl_de:
     call calc_ax_bx_mantissa_and_sign
-    jp z,handle_nan
+    jp z,div_handle_inf_or_nan
     sub b   ; new_exp = ax + bx - 15
     add 15
     ld b,a
     ld a,d
     or e
-    jp z,div_handle_inf_or_nan
+    jp z,div_handle_div_by_zero
     ld a,h
     or l
     ret z
@@ -544,11 +614,13 @@ div_exp_positive:
     or h
     ld h,a
     ret
-div_handle_inf_or_nan:
+div_handle_div_by_zero:
     ld a,h
     or l
     jp z,handle_nan
     jp handle_inf 
+div_handle_inf_or_nan:
+    jp handle_nan    
 
 
 
