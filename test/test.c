@@ -311,6 +311,8 @@ void test_int(F16Comp *impl)
 
 void run_test(F16Comp *impl)
 {
+    printf("Infs/NaNs\n");
+    invalids_test(impl);
     printf("General\n");
     sanity_test_run(impl);
     printf("Casting to/from integer\n");
@@ -319,6 +321,4 @@ void run_test(F16Comp *impl)
     test_integers(impl);
     printf("Subnormals\n");
     test_subnormals(impl);
-    printf("Infs/NaNs\n");
-    invalids_test(impl);
-}
+ }

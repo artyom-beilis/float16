@@ -228,7 +228,7 @@ int main()
     atexit(print_stats);
     //
     // print_cpu_state=1;
-    // zx_div(10958,466);
+    // zx_mul(0xFC00,0x8001);
     // return 0;
     //
     run_test(&cmp);

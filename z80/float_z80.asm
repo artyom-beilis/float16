@@ -620,7 +620,35 @@ div_handle_div_by_zero:
     jp z,handle_nan
     jp handle_inf 
 div_handle_inf_or_nan:
-    jp handle_nan    
+    ld c,a
+    add b
+    cp 62
+    jp z,handle_nan
+    ld a,c
+    cp 31
+    jr nz,div_a_valid
+    ld a,4
+    xor h
+    or l
+    jp nz,handle_nan
+    ld a,d
+    or e
+    jp z,handle_inf
+div_a_valid:
+    ld a,b
+    cp 31
+    jr nz,div_b_valid
+    ld a,4
+    xor d
+    or e
+    jp nz,handle_nan
+    ld hl,0 ; div by inf is 0
+    ret
+div_b_valid:
+    ld a,h
+    or l
+    ret z
+    jp handle_inf
 
 
 
