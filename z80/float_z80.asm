@@ -2,11 +2,30 @@ GLOBAL _f16_add
 GLOBAL _f16_sub
 GLOBAL _f16_mul
 GLOBAL _f16_div
+GLOBAL _f16_int
+GLOBAL _f16_neg
+GLOBAL _f16_from_int
 
 GLOBAL _f16_add_hl_de
 GLOBAL _f16_sub_hl_de
 GLOBAL _f16_mul_hl_de
 GLOBAL _f16_div_hl_de
+
+GLOBAL _f16_gt_hl_de
+GLOBAL _f16_gte_hl_de
+GLOBAL _f16_lt_hl_de
+GLOBAL _f16_lte_hl_de
+GLOBAL _f16_eq_hl_de
+GLOBAL _f16_neq_hl_de
+
+GLOBAL _f16_gt
+GLOBAL _f16_gte
+GLOBAL _f16_lt
+GLOBAL _f16_lte
+GLOBAL _f16_eq
+GLOBAL _f16_neq
+
+
 
 
 SECTION code_compiler
@@ -720,65 +739,12 @@ div_final:
     ret 
 
 _f16_neg:
-    pop bc
-    pop hl
-    push hl
-    push bc
-_f16_neg_hl:
     ld a,0x80
     xor h
     ld h,a
     ret
 
-_f16_from_int:
-    pop bc
-    pop hl
-    push hl
-    push bc
-_f16_from_int_hl:
-    ld a,h
-    or l
-    ret z
-    ld a,h
-    and 0x80
-    jr z,from_int_positive
-    ld de,0
-    ex de,hl
-    sbc hl,de
-from_int_positive:
-    ld c,a
-    ld b,25
-    ld a,7
-from_int_fix_big:
-    cp h
-    jr nc,from_int_small
-    sra h
-    rr l
-    inc b
-    jr from_int_fix_big
-
-from_int_small:
-    bit 2,h
-    jr nz,from_int_final_combine
-    add hl,hl
-    dec b
-    jr from_int_small
-from_int_final_combine:
-    ld a,b
-    add a,a
-    add a,a
-    res 2,h
-    or h
-    or c
-    ld h,a
-    ret
-
 _f16_int:
-    pop bc
-    pop hl
-    push hl
-    push bc
-_f16_int_hl:
     ld de,0
     call calc_ax_bx_mantissa_and_sign
     jr z,f16_int_nan
@@ -798,17 +764,204 @@ f16_int_shift_right_next:
     rr l
     djnz f16_int_shift_right_next
 f16_int_combine_sign:
-    ld a,c
+    ld de,0
+    ex af,af'
     and a
     ret z
-    ld de,0
     ex de,hl
     sbc hl,de
     and a ; reset carry
+    ld de,0xFFFF
     ret
 f16_int_nan:
     ld hl,0
+    ld de,0
     scf
     ret
 
+_f16_from_int:
+    ld a,0
+    ex af,af'
+    ld a,e
+    or d
+    jr z,from_int_pos
+    ld a,0x80
+    ex af,af'
+    inc de
+    ld a,d
+    or e
+    jp nz,handle_inf
+    ex de,hl
+    and a
+    sbc hl,de
+from_int_pos:
+    ld a,h
+    or l
+    ret z
+    ld b,25
+from_int_sr:
+    ld a,0xf8
+    and h
+    jr z,from_int_less_then_800
+    rr h
+    rr l
+    inc b
+    jr from_int_sr
+from_int_less_then_800:
+    ld a,h
+    or l
+    ret z
+from_int_shift_left:
+    bit 2,h
+    jr nz,from_int_range_ok
+    add hl,hl
+    dec b
+    jr from_int_shift_left
+from_int_range_ok:
+    ld a,b
+    jp final_combine
 
+    
+; input hl as A he as B
+; return bit 0,a = A > B;
+; return bit 1,a = A == B
+; return bit 2,a = A < B;
+_f16_cmp_he_de_to_a:
+    ld a,l
+    sub 1
+    ld a,h
+    res 7,a
+    sbc 0x7c
+    jr nc,cmp_nan
+    ld a,e
+    sub 1
+    ld a,d
+    res 7,a
+    sbc 0x7c
+    jr nc,cmp_nan
+    ld a,h
+    and 0x7F
+    or l
+    jr nz,cmp_a_not_zero
+    ld h,a
+cmp_a_not_zero:
+    ld a,d
+    and 0x7F
+    or e
+    jr nz,cmp_b_not_zero
+    ld d,a
+cmp_b_not_zero:
+    xor a  ; copy signs of hl and de to bit 1 and 0 of a
+    rl h
+    rl a
+    rr h
+    rl d
+    rl a
+    rr d
+    cp 1
+    jr z,cmp_ret_100
+    cp 2
+    jr z,cmp_ret_001
+    and a
+    jr z,cmp_no_swap_hl_de
+    ex de,hl
+cmp_no_swap_hl_de:
+    sbc hl,de
+    jr z,cmp_ret_010
+    jr c,cmp_ret_001
+cmp_ret_100:
+    ld a,4
+    ret
+cmp_ret_010:
+    ld a,2
+    ret
+cmp_ret_001:
+    ld a,1
+    ret
+cmp_nan:
+    xor a
+    ret
+
+_f16_gt:
+    ld hl,_f16_gt_hl_de
+    push hl
+    jr read_stack_params
+_f16_lt:
+    ld hl,_f16_lt_hl_de
+    push hl
+    jr read_stack_params
+_f16_gte:
+    ld hl,_f16_gte_hl_de
+    push hl
+    jr read_stack_params
+_f16_lte:
+    ld hl,_f16_lte_hl_de
+    push hl
+    jr read_stack_params
+
+_f16_eq:
+    ld hl,_f16_eq_hl_de
+    push hl
+    jr read_stack_params
+_f16_neq:
+    ld hl,_f16_neq_hl_de
+    push hl
+    jr read_stack_params
+
+read_stack_params:
+    pop af
+    pop bc
+    pop hl
+    pop de
+    push de
+    push hl
+    push bc
+    push af
+    ret
+    
+
+_f16_gt_hl_de:
+    call _f16_cmp_he_de_to_a
+    and 4
+    jr nz,cmp_ret_true
+    jr cmp_ret_false
+
+_f16_lt_hl_de:
+    call _f16_cmp_he_de_to_a
+    and 1
+    jr nz,cmp_ret_true
+    jr cmp_ret_false
+
+_f16_eq_hl_de:
+    call _f16_cmp_he_de_to_a
+    and 2
+    jr nz,cmp_ret_true
+    jr cmp_ret_false
+
+_f16_neq_hl_de:
+    call _f16_cmp_he_de_to_a
+    and 2
+    jr z,cmp_ret_true
+    jr cmp_ret_false
+
+_f16_lte_hl_de:
+    call _f16_cmp_he_de_to_a
+    and 3
+    jr nz,cmp_ret_true
+    jr cmp_ret_false
+
+_f16_gte_hl_de:
+    call _f16_cmp_he_de_to_a
+    and 6
+    jr nz,cmp_ret_true
+    jr cmp_ret_false
+
+cmp_ret_true:
+    ld hl,1
+    or 1
+    ret
+
+cmp_ret_false:
+    ld hl,0
+    xor a
+    ret

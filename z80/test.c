@@ -33,20 +33,30 @@ static Z80EX_BYTE intread(Z80EX_CONTEXT *cpu, void *user_data)
     return 0;
 }
 
+typedef struct zfunc {
+    unsigned short addr;
+    long states;
+    int calls;
+    char const *name;
+ } zfunc;
+
 struct DEF_ADDR {
-    unsigned short add;
-    long add_states;
-    int add_calls;
-    unsigned short sub;
-    long sub_states;
-    int sub_calls;
-    unsigned short mul;
-    long mul_states;
-    int mul_calls;
-    unsigned short div;
-    long div_states;
-    int div_calls;
+    zfunc add;
+    zfunc sub;
+    zfunc mul;
+    zfunc div;
+    zfunc neg;
+    zfunc toint;
+    zfunc from_int;
+    zfunc gt;
+    zfunc lt;
+    zfunc gte;
+    zfunc lte;
+    zfunc eq;
+    zfunc neq;
 } addrs;
+
+#define ADDR(n) else if(strcmp(name,"_f16_" #n "_hl_de") == 0) { addrs.n.addr = addr; addrs.n.name = #n; }
 
 void read_def()
 {
@@ -56,14 +66,28 @@ void read_def()
     while(fgets(line,sizeof(line),f)) {
         if((def=strtok(line," $=")) && (name=strtok(0," $=")) && (hex=strtok(0," $="))) {
             unsigned short addr = strtol(hex,0,16);
-            if(strcmp(name,"_f16_add_hl_de")==0)
-                addrs.add = addr;
-            else if(strcmp(name,"_f16_sub_hl_de")==0)
-                addrs.sub = addr;
-            else if(strcmp(name,"_f16_mul_hl_de")==0)
-                addrs.mul = addr;
-            else if(strcmp(name,"_f16_div_hl_de")==0)
-                addrs.div = addr;
+            if(strcmp(name,"_f16_int")==0) {
+                addrs.toint.addr = addr;
+                addrs.toint.name = "int";
+            }
+            else if(strcmp(name,"_f16_neg")==0) {
+                addrs.neg.addr = addr;
+                addrs.neg.name = "neg";
+            }
+            else if(strcmp(name,"_f16_from_int")==0) {
+                addrs.from_int.addr = addr;
+                addrs.from_int.name = "from_int";
+            }
+            ADDR(add)
+            ADDR(sub)
+            ADDR(mul)
+            ADDR(div)
+            ADDR(gt)
+            ADDR(gte)
+            ADDR(lt)
+            ADDR(lte)
+            ADDR(eq)
+            ADDR(neq)
             else
                 continue;
             printf("%s=%x\n",name,addr);
@@ -121,11 +145,11 @@ void print_dasm()
     printf("%04x: %s\n",pc,buf);
 }
 
-int run_programm(int addr,short *hl,short *de,short *bc)
+void run_programm(zfunc *func,short *hl,short *de,short *bc)
 {
     if(print_cpu_state)
         printf("CALL:............................\n");
-    unsigned short saddr = addr;
+    unsigned short saddr = func->addr;
     z80ex_set_reg(ctx,regHL,*hl);
     z80ex_set_reg(ctx,regDE,*de);
     z80ex_set_reg(ctx,regBC,*bc);
@@ -154,57 +178,84 @@ int run_programm(int addr,short *hl,short *de,short *bc)
     *hl=z80ex_get_reg(ctx,regHL);
     *de=z80ex_get_reg(ctx,regDE);
     *bc=z80ex_get_reg(ctx,regDE);
-    return tstates;
+    func->states+=tstates;
+    func->calls++;
 }
 
-short run_2s1s(int addr,short a,short b,long *states)
+short run_2s1s(zfunc *func,short a,short b)
 {
     short hl=a;
     short de=b;
     short bc=0;
-    if(addr==0) {
+    if(func->addr==0) {
         fprintf(stderr,"Got call for addr 0\n");
         exit(1);
     }
-    *states += run_programm(addr,&hl,&de,&bc);
+    run_programm(func,&hl,&de,&bc);
     return hl;
 }
 
-static short zx_add(short a,short b)
+#define STDFUNC(x) static short zx_##x(short a,short b) { return run_2s1s(&addrs.x,a,b); }
+#define CPFUNC(x) static int zx_##x(short a,short b) { return run_2s1s(&addrs.x,a,b); }
+STDFUNC(add)
+STDFUNC(sub)
+STDFUNC(mul)
+STDFUNC(div)
+CPFUNC(gte)
+CPFUNC(lte)
+CPFUNC(gt)
+CPFUNC(lt)
+CPFUNC(eq)
+CPFUNC(neq)
+
+static short zx_neg(short a)
 {
-    addrs.add_calls++;
-    return run_2s1s(addrs.add,a,b,&addrs.add_states);
-}
-static short zx_sub(short a,short b)
-{
-    addrs.sub_calls++;
-    return run_2s1s(addrs.sub,a,b,&addrs.sub_states);
-}
-static short zx_mul(short a,short b)
-{
-    addrs.mul_calls++;
-    return run_2s1s(addrs.mul,a,b,&addrs.mul_states);
-}
-static short zx_div(short a,short b)
-{
-    addrs.div_calls++;
-    return run_2s1s(addrs.div,a,b,&addrs.div_states);
+    return run_2s1s(&addrs.neg,a,1234);
 }
 
-int ratio(long states,int calls)
+static int32_t zx_int(short a)
 {
-    if(calls == 0)
-        return 0;
-    return (int)(states/calls);
+    short hl=a;
+    short de=0;
+    short bc=0;
+    if(addrs.toint.addr==0) {
+        fprintf(stderr,"Got call for addr 0\n");
+        exit(1);
+    }
+    run_programm(&addrs.toint,&hl,&de,&bc);
+    unsigned res = (unsigned short)hl + 256u*(unsigned short)de;
+    return res;
+}
+
+static short zx_from_int(int32_t a)
+{
+    short hl=a & 0xFFFF;
+    short de=a >> 16;
+    short bc=0;
+    if(addrs.from_int.addr==0) {
+        fprintf(stderr,"Got call for addr 0\n");
+        exit(1);
+    }
+    run_programm(&addrs.from_int,&hl,&de,&bc);
+    return hl;
+}
+
+
+void ratio(zfunc *func,char const *name)
+{
+    if(func->calls==0)
+        return;
+    printf("%s %ld Tstats\n",name,func->states/func->calls);
 }
 
 void print_stats()
 {
-    printf("add %d T states\n",ratio(addrs.add_states,addrs.add_calls));
-    printf("sub %d T states\n",ratio(addrs.sub_states,addrs.sub_calls));
-    printf("mul %d T states\n",ratio(addrs.mul_states,addrs.mul_calls));
-    printf("div %d T states\n",ratio(addrs.div_states,addrs.div_calls));
+    zfunc *f = &addrs.add;
+    for(size_t i=0;i<sizeof(addrs)/sizeof(zfunc);i++) {
+        ratio(f+i,f[i].name);
+    }
 }
+
 
 int main()
 {
@@ -213,24 +264,25 @@ int main()
         .sub = zx_sub,
         .mul = zx_mul,
         .div = zx_div,
-        .neg = f16_neg,
-        .to_int = f16_int,
-        .from_int = f16_from_int,
-        .gte = f16_gte,
-        .lte = f16_lte,
-        .gt = f16_gt,
-        .lt = f16_lt,
-        .eq = f16_eq,
-        .neq = f16_neq
+        .neg = zx_neg,
+        .to_int = zx_int,
+        .from_int = zx_from_int,
+        .gte = zx_gte,
+        .lte = zx_lte,
+        .gt = zx_gt,
+        .lt = zx_lt,
+        .eq = zx_eq,
+        .neq = zx_neq
     };
     init();
     read_def();
     atexit(print_stats);
     //
     // print_cpu_state=1;
-    // zx_mul(0xFC00,0x8001);
+    // zx_gte(0xfc00,0xbc00);
     // return 0;
     //
+    print_cpu_state=0;
     run_test(&cmp);
     return 0;
 }

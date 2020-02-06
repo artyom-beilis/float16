@@ -303,7 +303,8 @@ void test_int(F16Comp *impl)
         unsigned short act = impl->from_int(v);
         unsigned short ref = float32_to_float16(v);
         if(ref!=act) {
-            fprintf(stderr,"To Int failed for %ld int==(%f)%x got=(%f)%x\n",v,float16_to_float32(ref),ref,float16_to_float32(act),act);
+            printf("EEEEEEEEEE:%x\n",act);
+            fprintf(stderr,"From Int failed for %ld int==(%f)%x got=(%f)%x\n",v,float16_to_float32(ref),ref,float16_to_float32(act),act);
             exit(1);
         }
     }
@@ -311,12 +312,12 @@ void test_int(F16Comp *impl)
 
 void run_test(F16Comp *impl)
 {
+    printf("Casting to/from integer\n");
+    test_int(impl);
     printf("Infs/NaNs\n");
     invalids_test(impl);
     printf("General\n");
     sanity_test_run(impl);
-    printf("Casting to/from integer\n");
-    test_int(impl);
     printf("Integers\n");
     test_integers(impl);
     printf("Subnormals\n");
