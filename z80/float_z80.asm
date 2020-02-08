@@ -882,74 +882,79 @@ cmp_nan:
     xor a
     ret
 
+
 _f16_gt:
-    ld hl,_f16_gt_hl_de
-    push hl
-    jr read_stack_params
-_f16_lt:
-    ld hl,_f16_lt_hl_de
-    push hl
-    jr read_stack_params
-_f16_gte:
-    ld hl,_f16_gte_hl_de
-    push hl
-    jr read_stack_params
-_f16_lte:
-    ld hl,_f16_lte_hl_de
-    push hl
-    jr read_stack_params
-
-_f16_eq:
-    ld hl,_f16_eq_hl_de
-    push hl
-    jr read_stack_params
-_f16_neq:
-    ld hl,_f16_neq_hl_de
-    push hl
-    jr read_stack_params
-
-read_stack_params:
-    pop af
     pop bc
     pop hl
     pop de
     push de
     push hl
     push bc
-    push af
-    ret
-    
-
 _f16_gt_hl_de:
     call _f16_cmp_he_de_to_a
     and 4
     jr nz,cmp_ret_true
     jr cmp_ret_false
 
+_f16_lt:
+    pop bc
+    pop hl
+    pop de
+    push de
+    push hl
+    push bc
 _f16_lt_hl_de:
     call _f16_cmp_he_de_to_a
     and 1
     jr nz,cmp_ret_true
     jr cmp_ret_false
 
+_f16_eq:
+    pop bc
+    pop hl
+    pop de
+    push de
+    push hl
+    push bc
 _f16_eq_hl_de:
     call _f16_cmp_he_de_to_a
     and 2
     jr nz,cmp_ret_true
     jr cmp_ret_false
 
+_f16_neq:
+    pop bc
+    pop hl
+    pop de
+    push de
+    push hl
+    push bc
 _f16_neq_hl_de:
     call _f16_cmp_he_de_to_a
     and 2
     jr z,cmp_ret_true
     jr cmp_ret_false
 
+_f16_lte:
+    pop bc
+    pop hl
+    pop de
+    push de
+    push hl
+    push bc
 _f16_lte_hl_de:
     call _f16_cmp_he_de_to_a
     and 3
     jr nz,cmp_ret_true
     jr cmp_ret_false
 
+_f16_gte:
+    pop bc
+    pop hl
+    pop de
+    push de
+    push hl
+    push bc
 _f16_gte_hl_de:
     call _f16_cmp_he_de_to_a
     and 6

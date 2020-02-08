@@ -56,7 +56,9 @@ struct DEF_ADDR {
     zfunc neq;
 } addrs;
 
-#define ADDR(n) else if(strcmp(name,"_f16_" #n "_hl_de") == 0) { addrs.n.addr = addr; addrs.n.name = #n; }
+#define ADDRS(n,s) if(strcmp(name,"_f16_" #n s) == 0) { addrs.n.addr = addr; addrs.n.name = #n; printf("%10s: %x\n",#n,addr); }
+#define ADDR(n) ADDRS(n,"_hl_de")
+#define ADDRD(n) ADDRS(n,"")
 
 void read_def()
 {
@@ -69,15 +71,10 @@ void read_def()
             if(strcmp(name,"_f16_int")==0) {
                 addrs.toint.addr = addr;
                 addrs.toint.name = "int";
+                printf("%10s: %x\n","int",addr);
             }
-            else if(strcmp(name,"_f16_neg")==0) {
-                addrs.neg.addr = addr;
-                addrs.neg.name = "neg";
-            }
-            else if(strcmp(name,"_f16_from_int")==0) {
-                addrs.from_int.addr = addr;
-                addrs.from_int.name = "from_int";
-            }
+            ADDRD(neg)
+            ADDRD(from_int)
             ADDR(add)
             ADDR(sub)
             ADDR(mul)
@@ -90,7 +87,6 @@ void read_def()
             ADDR(neq)
             else
                 continue;
-            printf("%s=%x\n",name,addr);
         }
     }
     fclose(f);
@@ -103,11 +99,13 @@ void init()
         perror("fopen");
         exit(1);
     }
-    if(fread(memory+32768,1,32768,f) <= 0) {
+    int n;
+    if((n=fread(memory+32768,1,32768,f)) <= 0) {
         perror("Failed reading code\n");
         exit(1);
     }
     fclose(f);
+    printf("Code size %d bytes\n",n);
     ctx = z80ex_create(mread,NULL,mwrite,NULL,pread,NULL,pwrite,NULL,intread,NULL);
     if(!ctx) {
         fprintf(stderr,"Failed to create contex!\n");
