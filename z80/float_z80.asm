@@ -856,22 +856,24 @@ cmp_norm_check_de_nan:
     and a
     jr nz,cmp_norm_nan
 cmp_norm_de_ok:
-    xor a  ; copy signs of hl and de to bit 1 and 0 of a
-    rl h
-    rl a
-    rr h
-    rl d
-    rl a
-    rr d
-    cp 1
+    ld b,0x80
+    ld a,h
+    xor d
+    and b
+    jr z,cmp_signs_same
+    ld a,h
+    and b
     jr z,cmp_ret_100
-    cp 2
-    jr z,cmp_ret_001
-    and a
+    jr cmp_ret_001
+cmp_signs_same:
+    ld a,h
+    and b
     jr z,cmp_no_swap_hl_de
     ex de,hl
 cmp_no_swap_hl_de:
-    sbc hl,de
+    res 7,h
+    res 7,d
+    sbc hl,de 
     jr z,cmp_ret_010
     jr c,cmp_ret_001
 cmp_ret_100:
