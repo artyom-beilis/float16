@@ -827,30 +827,35 @@ from_int_range_ok:
 ; return bit 1,a = A == B
 ; return bit 2,a = A < B;
 _f16_cmp_he_de_to_a:
-    ld a,l
-    sub 1
+    ld bc,0x7C7F
     ld a,h
-    res 7,a
-    sbc 0x7c
-    jr nc,cmp_nan
-    ld a,e
-    sub 1
-    ld a,d
-    res 7,a
-    sbc 0x7c
-    jr nc,cmp_nan
-    ld a,h
-    and 0x7F
+    and c
+    cp b
+    jr nc,cmp_norm_check_hl_nan
     or l
-    jr nz,cmp_a_not_zero
-    ld h,a
-cmp_a_not_zero:
+    jr nz,cmp_norm_hl_ok
+    res 7,h             ; normalize -0
+    jr cmp_norm_hl_ok
+cmp_norm_check_hl_nan:
+    jr nz,cmp_norm_nan
+    ld a,l
+    and a
+    jr nz,cmp_norm_nan
+cmp_norm_hl_ok:
     ld a,d
-    and 0x7F
+    and c
+    cp b
+    jr nc,cmp_norm_check_de_nan
     or e
-    jr nz,cmp_b_not_zero
-    ld d,a
-cmp_b_not_zero:
+    jr nz,cmp_norm_de_ok
+    res 7,d             ; normalize -0
+    jr cmp_norm_de_ok
+cmp_norm_check_de_nan:
+    jr nz,cmp_norm_nan
+    ld a,e
+    and a
+    jr nz,cmp_norm_nan
+cmp_norm_de_ok:
     xor a  ; copy signs of hl and de to bit 1 and 0 of a
     rl h
     rl a
@@ -878,10 +883,10 @@ cmp_ret_010:
 cmp_ret_001:
     ld a,1
     ret
-cmp_nan:
+cmp_norm_nan:
     xor a
     ret
-
+   
 
 _f16_gt:
     pop bc
@@ -890,6 +895,7 @@ _f16_gt:
     push de
     push hl
     push bc
+
 _f16_gt_hl_de:
     call _f16_cmp_he_de_to_a
     and 4
