@@ -25,4 +25,4 @@ What is expected in future:
 
 - All functions are reentrant and relay on alternative set of registers AF', HL', DE', BC', so if your interrupt routines use shadow registers for fast context switching you can't use this library.
 - Some functions is IX for frame pointer, IY is not modified.
-
+- Each functions come in two variants the z88dk C calling format and using registers, for example `_f16_add` with parameters passed over stack and `_f6_add_hl_de` that the parameters passed via hl and de, and result returned in hl
