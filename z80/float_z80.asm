@@ -827,16 +827,12 @@ from_int_range_ok:
 ; return bit 1,a = A == B
 ; return bit 2,a = A < B;
 _f16_cmp_he_de_to_a:
+cmp_normalize_substract:
     ld bc,0x7C7F
     ld a,h
     and c
     cp b
-    jr nc,cmp_norm_check_hl_nan
-    or l
-    jr nz,cmp_norm_hl_ok
-    res 7,h             ; normalize -0
-    jr cmp_norm_hl_ok
-cmp_norm_check_hl_nan:
+    jr c,cmp_norm_hl_ok
     jr nz,cmp_norm_nan
     ld a,l
     and a
@@ -845,12 +841,7 @@ cmp_norm_hl_ok:
     ld a,d
     and c
     cp b
-    jr nc,cmp_norm_check_de_nan
-    or e
-    jr nz,cmp_norm_de_ok
-    res 7,d             ; normalize -0
-    jr cmp_norm_de_ok
-cmp_norm_check_de_nan:
+    jr c,cmp_norm_de_ok
     jr nz,cmp_norm_nan
     ld a,e
     and a
@@ -858,35 +849,34 @@ cmp_norm_check_de_nan:
 cmp_norm_de_ok:
     ld b,0x80
     ld a,h
-    xor d
+    xor b
+    ld h,a
+    and b               
+    jr nz,cmp_hl_fixed
+    xor a   
+    sub l
+    ld l,a
+    ld a,b
+    sbc h
+    ld h,a
+cmp_hl_fixed:
+    ld a,d
+    xor b
+    ld d,a
     and b
-    jr z,cmp_signs_same
-    ld a,h
-    and b
-    jr z,cmp_ret_100
-    jr cmp_ret_001
-cmp_signs_same:
-    ld a,h
-    and b
-    jr z,cmp_no_swap_hl_de
-    ex de,hl
-cmp_no_swap_hl_de:
-    res 7,h
-    res 7,d
-    sbc hl,de 
-    jr z,cmp_ret_010
-    jr c,cmp_ret_001
-cmp_ret_100:
-    ld a,4
-    ret
-cmp_ret_010:
-    ld a,2
-    ret
-cmp_ret_001:
-    ld a,1
+    jr nz,cmp_de_fixed
+    xor a
+    sub e
+    ld e,a
+    ld a,b
+    sbc d
+    ld d,a
+cmp_de_fixed:
+    and a ; make sure carry reset
     ret
 cmp_norm_nan:
-    xor a
+    pop hl
+    ld hl,0
     ret
    
 
@@ -899,10 +889,12 @@ _f16_gt:
     push bc
 
 _f16_gt_hl_de:
-    call _f16_cmp_he_de_to_a
-    and 4
-    jr nz,cmp_ret_true
-    jr cmp_ret_false
+    call cmp_normalize_substract
+    ex de,hl
+    sbc hl,de
+    jr c,cmp_ret_true
+    ld hl,0
+    ret
 
 _f16_lt:
     pop bc
@@ -912,11 +904,11 @@ _f16_lt:
     push hl
     push bc
 _f16_lt_hl_de:
-    call _f16_cmp_he_de_to_a
-    and 1
-    jr nz,cmp_ret_true
-    jr cmp_ret_false
-
+    call cmp_normalize_substract
+    sbc hl,de
+    jr c,cmp_ret_true
+    ld hl,0
+    ret
 _f16_eq:
     pop bc
     pop hl
@@ -925,10 +917,11 @@ _f16_eq:
     push hl
     push bc
 _f16_eq_hl_de:
-    call _f16_cmp_he_de_to_a
-    and 2
-    jr nz,cmp_ret_true
-    jr cmp_ret_false
+    call cmp_normalize_substract
+    sbc hl,de
+    jr z,cmp_ret_true
+    ld hl,0
+    ret
 
 _f16_neq:
     pop bc
@@ -938,10 +931,11 @@ _f16_neq:
     push hl
     push bc
 _f16_neq_hl_de:
-    call _f16_cmp_he_de_to_a
-    and 2
-    jr z,cmp_ret_true
-    jr cmp_ret_false
+    call _f16_eq_hl_de
+    ld a,1
+    xor l
+    ld l,a
+    ret
 
 _f16_lte:
     pop bc
@@ -951,10 +945,12 @@ _f16_lte:
     push hl
     push bc
 _f16_lte_hl_de:
-    call _f16_cmp_he_de_to_a
-    and 3
-    jr nz,cmp_ret_true
-    jr cmp_ret_false
+    call cmp_normalize_substract
+    ex de,hl
+    sbc hl,de
+    jr nc,cmp_ret_true
+    ld hl,0
+    ret
 
 _f16_gte:
     pop bc
@@ -964,17 +960,16 @@ _f16_gte:
     push hl
     push bc
 _f16_gte_hl_de:
-    call _f16_cmp_he_de_to_a
-    and 6
-    jr nz,cmp_ret_true
-    jr cmp_ret_false
+    call cmp_normalize_substract
+    sbc hl,de
+    jr nc,cmp_ret_true
+    ld hl,0
+    ret
 
 cmp_ret_true:
     ld hl,1
-    or 1
     ret
 
 cmp_ret_false:
     ld hl,0
-    xor a
     ret
