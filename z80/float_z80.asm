@@ -10,6 +10,9 @@ GLOBAL _f16_add_hl_de
 GLOBAL _f16_sub_hl_de
 GLOBAL _f16_mul_hl_de
 GLOBAL _f16_div_hl_de
+GLOBAL _f16_int_hl
+GLOBAL _f16_neg_hl
+GLOBAL _f16_from_int_dehl
 
 GLOBAL _f16_gt_hl_de
 GLOBAL _f16_gte_hl_de
@@ -739,12 +742,22 @@ div_final:
     ret 
 
 _f16_neg:
+    pop bc
+    pop hl
+    push hl
+    push bc
+_f16_neg_hl:
     ld a,0x80
     xor h
     ld h,a
     ret
 
 _f16_int:
+    pop bc
+    pop hl
+    push hl
+    push bc
+_f16_int_hl:
     ld de,0
     call calc_ax_bx_mantissa_and_sign
     jr z,f16_int_nan
@@ -780,6 +793,13 @@ f16_int_nan:
     ret
 
 _f16_from_int:
+    pop bc
+    pop hl
+    pop de
+    push de
+    push hl
+    push bc
+_f16_from_int_dehl:
     ld a,0
     ex af,af'
     ld a,e

@@ -68,13 +68,13 @@ void read_def()
     while(fgets(line,sizeof(line),f)) {
         if((def=strtok(line," $=")) && (name=strtok(0," $=")) && (hex=strtok(0," $="))) {
             unsigned short addr = strtol(hex,0,16);
-            if(strcmp(name,"_f16_int")==0) {
+            if(strcmp(name,"_f16_int_hl")==0) {
                 addrs.toint.addr = addr;
                 addrs.toint.name = "int";
                 printf("%10s: %x\n","int",addr);
             }
-            ADDRD(neg)
-            ADDRD(from_int)
+            ADDRS(neg,"_hl")
+            ADDRS(from_int,"_dehl")
             ADDR(add)
             ADDR(sub)
             ADDR(mul)
