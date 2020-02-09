@@ -879,7 +879,6 @@ cmp_norm_nan:
     ld hl,0
     ret
    
-
 _f16_gt:
     pop bc
     pop hl
@@ -892,8 +891,8 @@ _f16_gt_hl_de:
     call cmp_normalize_substract
     ex de,hl
     sbc hl,de
-    jr c,cmp_ret_true
     ld hl,0
+    rl l
     ret
 
 _f16_lt:
@@ -906,8 +905,8 @@ _f16_lt:
 _f16_lt_hl_de:
     call cmp_normalize_substract
     sbc hl,de
-    jr c,cmp_ret_true
     ld hl,0
+    rl l
     ret
 _f16_eq:
     pop bc
@@ -919,8 +918,9 @@ _f16_eq:
 _f16_eq_hl_de:
     call cmp_normalize_substract
     sbc hl,de
-    jr z,cmp_ret_true
-    ld hl,0
+    ld hl,1
+    ret z
+    ld l,0
     ret
 
 _f16_neq:
@@ -948,8 +948,9 @@ _f16_lte_hl_de:
     call cmp_normalize_substract
     ex de,hl
     sbc hl,de
-    jr nc,cmp_ret_true
     ld hl,0
+    ccf
+    rl l
     ret
 
 _f16_gte:
@@ -962,14 +963,9 @@ _f16_gte:
 _f16_gte_hl_de:
     call cmp_normalize_substract
     sbc hl,de
-    jr nc,cmp_ret_true
     ld hl,0
+    ccf
+    rl l
     ret
 
-cmp_ret_true:
-    ld hl,1
-    ret
 
-cmp_ret_false:
-    ld hl,0
-    ret

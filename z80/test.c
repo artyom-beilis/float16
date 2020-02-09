@@ -166,8 +166,10 @@ void run_programm(zfunc *func,short *hl,short *de,short *bc)
         do {
             tstates+=z80ex_step(ctx);
         } while(z80ex_last_op_type(ctx)!=0 && tstates <= limit);
-        if(print_cpu_state)
+        if(print_cpu_state) {
             print_regs();
+            printf("T States: %d\n",tstates);
+        }
     }
     if(tstates > limit) {
         fprintf(stderr,"Looks like a loop, pc=%x\n",z80ex_get_reg(ctx,regPC));
@@ -277,7 +279,7 @@ int main()
     atexit(print_stats);
     //
     // print_cpu_state=1;
-    // zx_gte(0xfc00,0xbc00);
+    // zx_gt(0x8231,0x3210);
     // return 0;
     //
     print_cpu_state=0;
